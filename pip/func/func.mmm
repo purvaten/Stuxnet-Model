@@ -1,0 +1,1184 @@
+/*
+  Copyright (c) 2004-2005 The Regents of the University of California.
+  All rights reserved.
+
+  Permission is hereby granted, without written agreement and without
+  license or royalty fees, to use, copy, modify, and distribute this
+  software and its documentation for any purpose, provided that the
+  above copyright notice and the following two paragraphs appear in all
+  copies of this software and that appropriate acknowledgments are made
+  to the research of the Metropolis group.
+
+  IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY
+  FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+  ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
+  THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE POSSIBILITY OF
+  SUCH DAMAGE.
+
+  THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+  INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE
+  PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE UNIVERSITY OF
+  CALIFORNIA HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES,
+  ENHANCEMENTS, OR MODIFICATIONS.
+
+  METROPOLIS_COPYRIGHT_VERSION_1
+  COPYRIGHTENDKEY
+*/
+
+package pip.func;
+
+import metamodel.plt.yapitemplate.*;
+import metamodel.plt.TTLtemplate.*;
+//*****************************************************************************
+
+process SimpleProcess
+{
+
+    public SimpleProcess(String name)
+        {
+            super(name);
+        }
+
+    public elaborate int numOut() { return 0;}
+    public elaborate int numIn()        { return 0;}
+
+    void thread() {}
+}
+
+//*****************************************************************************
+
+//ATTACK
+
+//*****************************************************************************
+
+process Wincc extends SimpleProcess
+{
+    port yapioutinterface-<yapiint>- out1, out2;
+    port yapiininterface-<yapiint>- in;
+    port FAConnection fac_func;
+    int length;
+
+    public Wincc(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 2;}
+    public elaborate int numIn()        { return 1;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(99);
+                }
+
+            int t, n = 0;
+            double time;
+
+            while (1) {
+
+                time = fac_func.getEndTime();
+                blackbox(SystemCSim)%%
+                    t = round(time);
+                %%;
+                if (t >= 200*n) {
+                    // breaking condition
+                    if (t >= 3000) {
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " BREAKING OUT FROM SENDING REQUESTS from WinCC " << endl;
+                        %%;
+
+                        break;
+                    }
+
+                    out1.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote REQUEST " << endl;
+                    %%;
+
+                    in.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read REPLY :) " << endl;
+                    %%;
+
+                    n++;
+
+                }
+
+                else {
+                    out2.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote GARBAGE " << endl;
+                    %%;
+                }
+
+                continue;
+
+            }
+        }
+}
+//*****************************************************************************
+process Plc extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in1, in2;
+    port yapioutinterface-<yapiint>- out;
+    port Progress p;
+    int length;
+
+    public Plc(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 1;}
+    public elaborate int numIn()        { return 2;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+            while(1)
+                {
+                        if (in2.read_alert()) {
+                            in2.read(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " read MALICIOUS data from Bad_DLL_Periodic" << endl;
+                            %%;
+
+                        }
+
+
+                        if (in1.read_alert()) {
+                            in1.read(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " read data" << endl;
+                            %%;
+
+                            out.write(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " wrote data" << endl;
+                            %%;
+
+                            continue;
+                        }
+                }
+        }
+}
+
+//*****************************************************************************
+process Good_DLL extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in1, in2, in3;
+    port yapioutinterface-<yapiint>- out1, out2, out3;
+    port Progress p;
+    port LoadKeyboard kp5;
+    int length;
+
+    public Good_DLL(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 3;}
+    public elaborate int numIn()        { return 3;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+            while (kp5.getK() == 0) {
+                if (in3.read_alert() > 0) {
+                    in3.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read request from Step7 - NORMAL" << endl;
+                    %%;
+
+                    out1.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote request to PLC - NORMAL" << endl;
+                    %%;
+
+                    in2.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read reply from PLC - NORMAL" << endl;
+                    %%;
+
+                    out3.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote reply to step7 - NORMAL" << endl;
+                    %%;
+                }
+            }
+
+            while (1) {
+
+                        if (in1.read_alert() > 0) {
+
+                            in1.read(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " read request from Bad_DLL " << endl;
+                            %%;
+
+                            out1.write(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " wrote request to PLC " << endl;
+                            %%;
+
+                            in2.read(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " read reply from PLC " << endl;
+                            %%;
+
+                            out2.write(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " wrote reply to Bad_DLL " << endl;
+                            %%;
+
+                            continue;
+
+                        }
+            }
+
+        }
+}
+
+//*****************************************************************************
+process Step7_ extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in1, in2, in3;
+    port yapioutinterface-<yapiint>- out1, out2, out3;
+    port FAConnection fac_func;
+    port LoadKeyboard kp4;
+    int length;
+
+    public Step7_(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 3;}
+    public elaborate int numIn()        { return 3;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+            while (kp4.getK() != 1) {
+                if (in1.read_alert()) {
+                    in1.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read request from WinCC - NORMAL" << endl;
+                    %%;
+
+                    out3.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote reply to Good_DLL - NORMAL" << endl;
+                    %%;
+
+                    in3.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read reply from Good_DLL - NORMAL" << endl;
+                    %%;
+
+                    out2.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote reply WinCC - NORMAL" << endl;
+                    %%;
+                }
+            }
+
+            while (1) {
+
+                if (in1.read_alert()) {
+
+                    in1.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read request from WinCC " << endl;
+                    %%;
+
+                    out1.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote reply to Bad_DLL " << endl;
+                    %%;
+
+                    in2.read(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " read reply from Bad_DLL " << endl;
+                    %%;
+
+                    out2.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote reply WinCC " << endl;
+                    %%;
+
+                    double t = fac_func.getEndTime();
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " DEBUGGING - In Step7 - Time is " << t << " ns " << endl;
+                    %%;
+
+                    continue;
+
+                }
+
+            }
+
+        }
+}
+
+//*****************************************************************************
+
+process Step7p_ extends SimpleProcess
+{
+    port yapioutinterface-<yapiint>- out1, out2;
+    port FAConnection fac_func;
+    port LoadKeyboard kp6;
+    int length;
+
+    public Step7p_(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 2;}
+    public elaborate int numIn()        { return 0;}
+
+    void thread()
+        {
+
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(100);
+                }
+
+            int set = 0;
+            int breakout = 0;
+            int n = 0;
+            int t, s, start;
+            double time;
+
+            await (kp6.getK() > 0; ;) {
+                while(1) {
+
+                    time = fac_func.getEndTime();
+                    blackbox(SystemCSim)%%
+                        t = round(time);
+                    %%;
+                    if (t >= 560) {
+                        s = t;
+                        // Runs malicious code every 840 ns for 280 ns starting from after 560 ns
+                        while(1) {
+                            time = fac_func.getEndTime();
+                            blackbox(SystemCSim)%%
+                                t = round(time);
+                            %%;
+                            if (t >= 840*n + s && !set) {
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " writing MALICIOUS DATA START - n=" << n << " set=" << set << " s=" << s << endl;
+                                %%;
+
+                                start = t;
+
+                                out1.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote MALICIOUS DATA START - n=" << n << " set=" << set << " s=" << s << endl;
+                                %%;
+
+                                set = 1;
+                            }
+                            else {
+                                out2.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote GARBAGE 1 " << endl;
+                                %%;
+                            }
+
+                            time = fac_func.getEndTime();
+                            blackbox(SystemCSim)%%
+                                t = round(time);
+                            %%;
+                            if (t >= start + 280 && set) {
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " writing MALICIOUS DATA RESET - n=" << n << " set=" << set << " s=" << s << endl;
+                                %%;
+
+                                out1.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote MALICIOUS DATA RESET - n=" << n << " set=" << set << " s=" << s << endl;
+                                %%;
+
+                                set = 0;
+                                n++;
+                            }
+                            else {
+                                out2.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote GARBAGE 2 " << endl;
+                                %%;
+                            }
+
+                            time = fac_func.getEndTime();
+                            blackbox(SystemCSim)%%
+                                t = round(time);
+                            %%;
+                            // some breaking condition
+                            if ((t > 3000) && (set == 0)) {
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " BREAKING OUT FROM MALICIOUS LOGIC from Step7_Periodic" << endl;
+                                %%;
+                                breakout = 1;
+                                break;
+                            }
+                        }
+
+                        if (breakout)
+                            break;
+
+                    }
+
+                    else {
+                        out2.write(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " wrote GARBAGE 3 " << endl;
+                        %%;
+                    }
+
+                }
+            }
+        }
+}
+
+//*****************************************************************************
+
+process Bad_DLL_Periodic extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in;
+    port yapioutinterface-<yapiint>- out;
+    port Progress p;
+    int length;
+
+    public Bad_DLL_Periodic(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 1;}
+    public elaborate int numIn()        { return 1;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+
+            int n = 0;
+
+
+            while (1) {
+
+                    if (in.read_alert()) {
+
+                        n++;
+                        if (n%2 != 0) {
+                            p.setProgress(1);
+                        }
+                        else {
+                            p.setProgress(0);
+                        }
+
+                        in.read(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " read MALICIOUS request from Step7_Periodic " << endl;
+                        %%;
+
+                        out.write(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " wrote MALICIOUS data to PLC " << endl;
+                        %%;
+
+                    }
+
+            }
+
+        }
+}
+
+//*****************************************************************************
+
+process Bad_DLL extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in1, in2;
+    port yapioutinterface-<yapiint>- out1, out2;
+    port Progress p;
+    port LoadKeyboard kp3;
+    int length;
+
+    public Bad_DLL(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 2;}
+    public elaborate int numIn()        { return 2;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+            await (kp3.getK() > 0; ;) {
+                while (1) {
+
+                        if (in1.read_alert()) {
+
+                            in1.read(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " read request from Step7 " << endl;
+                            %%;
+
+                            // Critical data
+                            /*
+                                 100 -> critical always
+                                  99 -> critical when malicious logic is in progress
+                                rest -> non critical
+                            */
+                            if ((data[0].d == 100) || (data[0].d == 99 && p.getProgress() == 0)) {
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " PREPARING MALICIOUS DATA TO SEND BACK TO STEP7 " << endl;
+                                %%;
+
+                            }
+
+                            // Non-critical data
+                            else {
+
+                                out1.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote request to Good_DLL " << endl;
+                                %%;
+
+
+                                in2.read(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " read reply from Good_DLL " << endl;
+                                %%;
+                            }
+
+                            if (p.getProgress() == 0) {
+                                out2.write(data, length);
+
+                                blackbox(SystemCSim)%%
+                                    cout << "REGISTER : " << name() << " wrote reply to Stp7 BAD " << endl;
+                                %%;
+
+                                continue;
+                            }
+
+                            out2.write(data, length);
+
+                            blackbox(SystemCSim)%%
+                                cout << "REGISTER : " << name() << " wrote reply to Stp7 GOOD " << endl;
+                            %%;
+
+                            continue;
+
+                        }
+                }
+            }
+
+        }
+}
+
+
+//*****************************************************************************
+
+process Garbage extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in1, in2, in3, in4;
+    int length;
+
+    public Garbage(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 0;}
+    public elaborate int numIn()        { return 4;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = null;
+                }
+
+            while (1)
+                {
+                    if (in1.read_alert()) {
+                        in1.read(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " read GARBAGE from WinCC " << endl;
+                        %%;
+                    }
+
+                    if (in2.read_alert()) {
+                        in2.read(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " read GARBAGE from Step7_Periodic " << endl;
+                        %%;
+                    }
+
+                    if (in3.read_alert()) {
+                        in3.read(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " read GARBAGE from Pendrive " << endl;
+                        %%;
+                    }
+
+                    if (in4.read_alert()) {
+                        in4.read(data, length);
+
+                        blackbox(SystemCSim)%%
+                            cout << "REGISTER : " << name() << " read GARBAGE from Key " << endl;
+                        %%;
+                    }
+                }
+        }
+}
+
+//*****************************************************************************
+
+//PROPAGATION
+
+//*****************************************************************************
+
+process Pendrive extends SimpleProcess
+{
+    port yapioutinterface-<yapiint>- out1, out2;
+    port FAConnection fac_func;
+    int length;
+
+    public Pendrive(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 2;}
+    public elaborate int numIn()        { return 0;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(100);
+                }
+
+            for (int i = 0; i < 2; i++)
+                {
+                    out2.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote REQUEST " << i << endl;
+                    %%;
+                }
+
+            out1.write(data, length);
+
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " wrote REQUEST" << endl;
+            %%;
+        }
+}
+
+//*****************************************************************************
+process Layout extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in;
+    port LoadKeyboard kp1;
+    int length;
+
+    public Layout(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 0;}
+    public elaborate int numIn()        { return 1;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING..." << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(100);
+                }
+
+            in.read(data, length);
+
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " read REPLY" << endl;
+            %%;
+
+            kp1.setK(2);
+        }
+}
+
+//*****************************************************************************
+
+process Key extends SimpleProcess
+{
+    port yapioutinterface-<yapiint>- out1, out2;
+    port LoadKeyboard kp2;
+    int length;
+
+    public Key(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 1;}
+    public elaborate int numIn()        { return 0;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(100);
+                }
+
+            while(1) {
+                if (kp2.getK() == 2) {
+                    out1.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote REQUEST" << endl;
+                    %%;
+                    break;
+                }
+                else {
+                    out2.write(data, length);
+
+                    blackbox(SystemCSim)%%
+                        cout << "REGISTER : " << name() << " wrote to GARBAGE 5" << endl;
+                    %%;
+                }
+            }
+        }
+}
+
+//*****************************************************************************
+
+process Overflow extends SimpleProcess
+{
+    port yapiininterface-<yapiint>- in;
+    port LoadKeyboard kp;
+    int length;
+
+    public Overflow(String name, int len)
+        {
+            super(name);
+            length = len;
+        }
+
+    public elaborate int numOut() { return 0;}
+    public elaborate int numIn()        { return 1;}
+
+    void thread()
+        {
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " STARTING... " << endl;
+            %%;
+
+            yapiint[] data = new yapiint[length];
+
+            for (int i = 0; i < length; i++)
+                {
+                    data[i] = new yapiint(100);
+                }
+
+            in.read(data, length);
+
+            blackbox(SystemCSim)%%
+                cout << "REGISTER : " << name() << " read REQUEST" << endl;
+            %%;
+
+            kp.setK(1);
+        }
+}
+
+//*****************************************************************************
+
+//NETLIST
+
+//*****************************************************************************
+
+public netlist func
+{
+    yapichannel-<yapiint>- ch1, ch2, ch3, ch4, ch7, ch8, ch9, ch10, ch11, ch12, ch13, ch14, ch15, ch16, ch17, ch18, ch19, ch20;
+    TTLmediumnetlist-<yapiint>- ch1_ttl, ch2_ttl, ch3_ttl, ch4_ttl, ch7_ttl, ch8_ttl, ch9_ttl, ch10_ttl, ch11_ttl, ch12_ttl, ch13_ttl, ch14_ttl, ch15_ttl, ch16_ttl, ch17_ttl, ch18_ttl, ch19_ttl, ch20_ttl;
+
+    SimpleProcess wincc, s7p, step7p, new_dll, new_dll_p, plc, old_dll, garbage, pendrive, layout, overflow, key;
+
+    public func(String n)
+    {
+        super(n);
+
+        ch1 = new yapichannel-<yapiint>-("ch1", 5, 1);
+        addcomponent(ch1, this, "ch1");
+
+        ch2 = new yapichannel-<yapiint>-("ch2", 5, 1);
+        addcomponent(ch2, this, "ch2");
+
+        ch3 = new yapichannel-<yapiint>-("ch3", 5, 1);
+        addcomponent(ch3, this, "ch3");
+
+        ch4 = new yapichannel-<yapiint>-("ch4", 5, 1);
+        addcomponent(ch4, this, "ch4");
+
+        ch7 = new yapichannel-<yapiint>-("ch7", 5, 1);
+        addcomponent(ch7, this, "ch7");
+
+        ch8 = new yapichannel-<yapiint>-("ch8", 5, 1);
+        addcomponent(ch8, this, "ch8");
+
+        ch9 = new yapichannel-<yapiint>-("ch9", 5, 1);
+        addcomponent(ch9, this, "ch9");
+
+        ch10 = new yapichannel-<yapiint>-("ch10", 5, 1);
+        addcomponent(ch10, this, "ch10");
+
+        ch11 = new yapichannel-<yapiint>-("ch11", 5, 1);
+        addcomponent(ch11, this, "ch11");
+
+        ch12 = new yapichannel-<yapiint>-("ch12", 5, 1);
+        addcomponent(ch12, this, "ch12");
+
+        ch13 = new yapichannel-<yapiint>-("ch13", 5, 1);
+        addcomponent(ch13, this, "ch13");
+
+        ch14 = new yapichannel-<yapiint>-("ch14", 5, 1);
+        addcomponent(ch14, this, "ch14");
+
+        ch15 = new yapichannel-<yapiint>-("ch15", 5, 1);
+        addcomponent(ch15, this, "ch15");
+
+        ch16 = new yapichannel-<yapiint>-("ch16", 5, 1);
+        addcomponent(ch16, this, "ch16");
+
+        ch17 = new yapichannel-<yapiint>-("ch17", 5, 1);
+        addcomponent(ch17, this, "ch17");
+
+        ch18 = new yapichannel-<yapiint>-("ch18", 5, 1);
+        addcomponent(ch18, this, "ch18");
+
+        ch19 = new yapichannel-<yapiint>-("ch19", 5, 1);
+        addcomponent(ch19, this, "ch19");
+
+        ch20 = new yapichannel-<yapiint>-("ch20", 5, 1);
+        addcomponent(ch20, this, "ch20");
+
+
+        /* Attack */
+        wincc = new Wincc("WinCC", 1);
+        addcomponent(wincc, this, "WinCC");
+        connect(wincc, out1, ch1);
+        connect(wincc, out2, ch12);
+        connect(wincc, in, ch2);
+
+        s7p = new Step7_("Step7", 1);
+        addcomponent(s7p, this, "Step7");
+        connect(s7p, in1, ch1);
+        connect(s7p, out1, ch3);
+        connect(s7p, in2, ch4);
+        connect(s7p, out2, ch2);
+        connect(s7p, in3, ch18);
+        connect(s7p, out3, ch17);
+
+        step7p = new Step7p_("Step7_Periodic", 1);
+        addcomponent(step7p, this, "Step7_Periodic");
+        connect(step7p, out1, ch11);
+        connect(step7p, out2, ch13);
+
+        new_dll = new Bad_DLL("Malicious_DLL", 1);
+        addcomponent(new_dll, this, "Malicious_DLL");
+        connect(new_dll, in1, ch3);
+        connect(new_dll, out1, ch7);
+        connect(new_dll, in2, ch8);
+        connect(new_dll, out2, ch4);
+
+        new_dll_p = new Bad_DLL_Periodic("Malicious_DLL_Periodic", 1);
+        addcomponent(new_dll_p, this, "Malicious_DLL_Periodic");
+        connect(new_dll_p, in, ch11);
+        connect(new_dll_p, out, ch14);
+
+        plc = new Plc("PLC", 1);
+        addcomponent(plc, this, "PLC");
+        connect(plc, in1, ch9);
+        connect(plc, out, ch10);
+        connect(plc, in2, ch14);
+
+        old_dll = new Good_DLL("Original_DLL", 1);
+        addcomponent(old_dll, this, "Original_DLL");
+        connect(old_dll, in1, ch7);
+        connect(old_dll, out1, ch9);
+        connect(old_dll, in2, ch10);
+        connect(old_dll, out2, ch8);
+        connect(old_dll, in3, ch17);
+        connect(old_dll, out3, ch18);
+
+        garbage = new Garbage("Garbage_proc", 1);
+        addcomponent(garbage, this, "Garbage_proc");
+        connect(garbage, in1, ch12);
+        connect(garbage, in2, ch13);
+        connect(garbage, in3, ch19);
+        connect(garbage, in4, ch20);
+
+        Status sm = new Status("Progress_Status_Medium");
+        addcomponent(sm, this, "PROGRESS_STATUS_MEDIUM");
+        connect(new_dll_p, p, sm);
+        connect(new_dll, p, sm);
+        connect(old_dll, p, sm);
+        connect(plc, p, sm);
+
+
+        /* Propagation */
+        pendrive = new Pendrive("Pendrive_proc", 1);
+        addcomponent(pendrive, this, "Pendrive");
+        connect(pendrive, out1, ch15);
+        connect(pendrive, out2, ch19);
+
+        layout = new Layout("Layout_proc", 1);
+        addcomponent(layout, this, "Layout");
+        connect(layout, in, ch15);
+
+        key = new Key("Key_proc", 1);
+        addcomponent(key, this, "Key");
+        connect(key, out1, ch16);
+        connect(key, out2, ch20);
+
+        overflow = new Overflow("Overflow_proc", 1);
+        addcomponent(overflow, this, "Overflow");
+        connect(overflow, in, ch16);
+
+
+        Keyboard k = new Keyboard("Keyboard_Medium");
+        addcomponent(k, this, "KEYBOARD_MEDIUM");
+        connect(overflow, kp, k);
+        connect(layout, kp1, k);
+        connect(key, kp2, k);
+        connect(new_dll, kp3, k);
+        connect(s7p, kp4, k);
+        connect(old_dll, kp5, k);
+        connect(step7p, kp6, k);
+
+        refineIndepTTL();
+    }
+    //*****************************************************************************
+    public elaborate LinkedList getProcs()
+    {
+        LinkedList retlist = new LinkedList();
+        retlist.add(wincc);
+        retlist.add(s7p);
+        retlist.add(step7p);
+        retlist.add(new_dll);
+        retlist.add(new_dll_p);
+        retlist.add(old_dll);
+        retlist.add(plc);
+        retlist.add(garbage);
+
+        retlist.add(pendrive);
+        retlist.add(layout);
+        retlist.add(key);
+        retlist.add(overflow);
+
+        return retlist;
+    }
+
+    //*****************************************************************************
+    public elaborate void refineIndepTTL()
+    {
+        ch1_ttl = new TTLmediumnetlist-<yapiint>-("ch1_ttl", ch1, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch1_ttl, this, "ch1_ttl");
+
+        ch2_ttl = new TTLmediumnetlist-<yapiint>-("ch2_ttl", ch2, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch2_ttl, this, "ch2_ttl");
+
+        ch3_ttl = new TTLmediumnetlist-<yapiint>-("ch3_ttl", ch3, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch3_ttl, this, "ch3_ttl");
+
+        ch4_ttl = new TTLmediumnetlist-<yapiint>-("ch4_ttl", ch4, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch4_ttl, this, "ch4_ttl");
+
+        ch7_ttl = new TTLmediumnetlist-<yapiint>-("ch7_ttl", ch7, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch7_ttl, this, "ch7_ttl");
+
+        ch8_ttl = new TTLmediumnetlist-<yapiint>-("ch8_ttl", ch8, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch8_ttl, this, "ch8_ttl");
+
+        ch9_ttl = new TTLmediumnetlist-<yapiint>-("ch9_ttl", ch9, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch9_ttl, this, "ch9_ttl");
+
+        ch10_ttl = new TTLmediumnetlist-<yapiint>-("ch10_ttl", ch10, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch10_ttl, this, "ch10_ttl");
+
+        ch11_ttl = new TTLmediumnetlist-<yapiint>-("ch11_ttl", ch11, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch11_ttl, this, "ch11_ttl");
+
+        ch12_ttl = new TTLmediumnetlist-<yapiint>-("ch12_ttl", ch12, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch12_ttl, this, "ch12_ttl");
+
+        ch13_ttl = new TTLmediumnetlist-<yapiint>-("ch13_ttl", ch13, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch13_ttl, this, "ch13_ttl");
+
+        ch14_ttl = new TTLmediumnetlist-<yapiint>-("ch14_ttl", ch14, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch14_ttl, this, "ch14_ttl");
+
+        ch15_ttl = new TTLmediumnetlist-<yapiint>-("ch15_ttl", ch15, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch15_ttl, this, "ch15_ttl");
+
+        ch16_ttl = new TTLmediumnetlist-<yapiint>-("ch16_ttl", ch16, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch16_ttl, this, "ch16_ttl");
+
+        ch17_ttl = new TTLmediumnetlist-<yapiint>-("ch17_ttl", ch17, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch17_ttl, this, "ch17_ttl");
+
+        ch18_ttl = new TTLmediumnetlist-<yapiint>-("ch18_ttl", ch18, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch18_ttl, this, "ch18_ttl");
+
+        ch19_ttl = new TTLmediumnetlist-<yapiint>-("ch19_ttl", ch19, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch19_ttl, this, "ch19_ttl");
+
+        ch20_ttl = new TTLmediumnetlist-<yapiint>-("ch20_ttl", ch20, 1, 11, 0, 1, new stfunc(), 1);
+        addcomponent(ch20_ttl, this, "ch20_ttl");
+    }
+
+}
